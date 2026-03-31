@@ -81,10 +81,15 @@ RUN apk add --no-cache \
     git \
     linux-headers \
     python3-dev \
-    pcre2-dev
+    pcre2-dev \
+    cmake
 
 ADD https://install.python-poetry.org /tmp/install-poetry.py
 RUN python /tmp/install-poetry.py
+
+# cmake 4.x has no musllinux wheels for Alpine; constrain to 3.x which does
+RUN echo "cmake<4.0.0" > /constraints.txt
+ENV PIP_CONSTRAINT=/constraints.txt
 
 WORKDIR /label-studio
 

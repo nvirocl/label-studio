@@ -149,11 +149,15 @@ ROLE_PERMISSIONS = {
         all_permissions.tasks_view,
         all_permissions.annotations_create,
         all_permissions.annotations_view,
+        all_permissions.annotations_change,   # needed to update/save drafts and annotations
+        all_permissions.annotations_delete,   # needed to discard own annotations
         all_permissions.predictions_any,
         all_permissions.avatar_any,
         all_permissions.labels_view,
         all_permissions.users_token_any,
         all_permissions.views_view,
+        all_permissions.views_create,         # needed for data manager views
+        all_permissions.views_change,         # needed for data manager views
     },
 }
 
