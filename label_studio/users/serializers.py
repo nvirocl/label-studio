@@ -103,12 +103,23 @@ class BaseUserSerializerUpdate(BaseUserSerializer):
 
 class BaseWhoAmIUserSerializer(BaseUserSerializer):
     permissions = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
 
     class Meta(BaseUserSerializer.Meta):
-        fields = BaseUserSerializer.Meta.fields + ('permissions',)
+        fields = BaseUserSerializer.Meta.fields + ('permissions', 'role')
 
     def get_permissions(self, user) -> list[str]:
-        return [perm for _, perm in all_permissions]
+        from core.permissions import get_permissions_for_role, get_user_role_for_organization
+
+        role = get_user_role_for_organization(user)
+        if role is None:
+            return []
+        return sorted(get_permissions_for_role(role))
+
+    def get_role(self, user) -> str | None:
+        from core.permissions import get_user_role_for_organization
+
+        return get_user_role_for_organization(user)
 
 
 class UserSimpleSerializer(BaseUserSerializer):

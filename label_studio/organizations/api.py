@@ -11,12 +11,13 @@ from django.utils.decorators import method_decorator
 from django.utils.functional import cached_property
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
-from organizations.models import Organization, OrganizationMember
+from organizations.models import Organization, OrganizationMember, OrganizationMemberRole
 from organizations.serializers import (
     OrganizationIdSerializer,
     OrganizationInviteSerializer,
     OrganizationMemberListParamsSerializer,
     OrganizationMemberListSerializer,
+    OrganizationMemberRoleSerializer,
     OrganizationMemberSerializer,
     OrganizationSerializer,
 )
@@ -315,6 +316,108 @@ class OrganizationMemberDetailAPI(GetParentObjectMixin, generics.RetrieveDestroy
 
         member.soft_delete()
         return Response(status=204)  # 204 No Content is a common HTTP status for successful delete requests
+
+
+@method_decorator(
+    name='patch',
+    decorator=extend_schema(
+        tags=['Organizations'],
+        summary='Update organization member role',
+        description='Update the role of a member within the organization. Only owners and managers can change roles.',
+        parameters=[
+            OpenApiParameter(
+                name='user_pk',
+                type=OpenApiTypes.INT,
+                location='path',
+                description='A unique integer value identifying the user whose role is being updated.',
+            ),
+        ],
+        request=OrganizationMemberRoleSerializer,
+        responses={
+            200: OrganizationMemberRoleSerializer(),
+            403: OpenApiResponse(description='Forbidden – insufficient permissions to change roles.'),
+            404: OpenApiResponse(description='Member not found.'),
+        },
+        extensions={
+            'x-fern-sdk-group-name': ['organizations', 'members'],
+            'x-fern-sdk-method-name': 'update_role',
+            'x-fern-audiences': ['public'],
+        },
+    ),
+)
+class OrganizationMemberRoleAPI(GetParentObjectMixin, generics.UpdateAPIView):
+    """Allow owners and managers to change a member's role within the organization."""
+
+    permission_required = ViewClassPermission(
+        PATCH=all_permissions.organizations_change,
+        PUT=all_permissions.organizations_change,
+    )
+    parent_queryset = Organization.objects.all()
+    parser_classes = (JSONParser, FormParser, MultiPartParser)
+    serializer_class = OrganizationMemberRoleSerializer
+    http_method_names = ['patch']
+
+    def get_queryset(self):
+        return OrganizationMember.objects.filter(
+            organization=self.parent_object,
+            deleted_at__isnull=True,
+        )
+
+    def patch(self, request, pk=None, user_pk=None):
+        org = self.parent_object
+
+        if org != request.user.active_organization:
+            raise PermissionDenied('You can update roles only for your current active organization')
+
+        # Verify requester has management role
+        try:
+            requester_member = OrganizationMember.objects.get(
+                user=request.user,
+                organization=org,
+                deleted_at__isnull=True,
+            )
+        except OrganizationMember.DoesNotExist:
+            raise PermissionDenied('You are not a member of this organization')
+
+        if not requester_member.has_management_role:
+            raise PermissionDenied('Only owners and managers can change member roles')
+
+        target_user = get_object_or_404(User, pk=user_pk)
+        target_member = get_object_or_404(
+            OrganizationMember,
+            user=target_user,
+            organization=org,
+            deleted_at__isnull=True,
+        )
+
+        serializer = OrganizationMemberRoleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_role = serializer.validated_data['role']
+
+        # Only owners can assign/revoke the owner role
+        if target_member.role == OrganizationMemberRole.OWNER and requester_member.role != OrganizationMemberRole.OWNER:
+            raise PermissionDenied('Only owners can change the role of another owner')
+
+        if new_role == OrganizationMemberRole.OWNER and requester_member.role != OrganizationMemberRole.OWNER:
+            raise PermissionDenied('Only owners can assign the owner role')
+
+        # Prevent the last owner from changing their own role
+        if (
+            target_member.role == OrganizationMemberRole.OWNER
+            and new_role != OrganizationMemberRole.OWNER
+        ):
+            owner_count = OrganizationMember.objects.filter(
+                organization=org,
+                role=OrganizationMemberRole.OWNER,
+                deleted_at__isnull=True,
+            ).count()
+            if owner_count <= 1:
+                raise PermissionDenied('Cannot change role: organization must have at least one owner')
+
+        target_member.role = new_role
+        target_member.save(update_fields=['role'])
+
+        return Response({'role': target_member.role}, status=200)
 
 
 @method_decorator(

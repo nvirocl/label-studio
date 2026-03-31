@@ -72,6 +72,126 @@ class ViewClassPermission(BaseModel):
     POST: Optional[str] = None
 
 
+# Role-to-permission mapping.
+# Each role has a set of allowed permissions.
+# Owner: all permissions
+# Manager: can manage projects, tasks, annotations, storages, models, webhooks, views and invite users
+# Reviewer: can view projects/tasks, create/view/change annotations, perform actions, view models
+# Annotator: can view projects/tasks, create annotations, manage own avatar/token
+ROLE_PERMISSIONS = {
+    'owner': {perm for _, perm in all_permissions},
+    'manager': {
+        all_permissions.organizations_view,
+        all_permissions.organizations_invite,
+        all_permissions.projects_create,
+        all_permissions.projects_view,
+        all_permissions.projects_change,
+        all_permissions.projects_delete,
+        all_permissions.projects_reset_cache,
+        all_permissions.tasks_create,
+        all_permissions.tasks_view,
+        all_permissions.tasks_change,
+        all_permissions.tasks_delete,
+        all_permissions.annotations_create,
+        all_permissions.annotations_view,
+        all_permissions.annotations_change,
+        all_permissions.annotations_delete,
+        all_permissions.actions_perform,
+        all_permissions.predictions_any,
+        all_permissions.avatar_any,
+        all_permissions.labels_create,
+        all_permissions.labels_view,
+        all_permissions.labels_change,
+        all_permissions.labels_delete,
+        all_permissions.models_create,
+        all_permissions.models_view,
+        all_permissions.models_change,
+        all_permissions.models_delete,
+        all_permissions.model_provider_connection_create,
+        all_permissions.model_provider_connection_view,
+        all_permissions.model_provider_connection_change,
+        all_permissions.model_provider_connection_delete,
+        all_permissions.webhooks_view,
+        all_permissions.webhooks_change,
+        all_permissions.users_token_any,
+        all_permissions.storages_view,
+        all_permissions.storages_change,
+        all_permissions.storages_sync,
+        all_permissions.views_reset,
+        all_permissions.views_view,
+        all_permissions.views_create,
+        all_permissions.views_change,
+        all_permissions.views_delete,
+    },
+    'reviewer': {
+        all_permissions.organizations_view,
+        all_permissions.projects_view,
+        all_permissions.tasks_view,
+        all_permissions.annotations_create,
+        all_permissions.annotations_view,
+        all_permissions.annotations_change,
+        all_permissions.annotations_delete,
+        all_permissions.actions_perform,
+        all_permissions.predictions_any,
+        all_permissions.avatar_any,
+        all_permissions.labels_view,
+        all_permissions.models_view,
+        all_permissions.model_provider_connection_view,
+        all_permissions.users_token_any,
+        all_permissions.views_view,
+        all_permissions.views_create,
+        all_permissions.views_change,
+        all_permissions.views_delete,
+    },
+    'annotator': {
+        all_permissions.organizations_view,
+        all_permissions.projects_view,
+        all_permissions.tasks_view,
+        all_permissions.annotations_create,
+        all_permissions.annotations_view,
+        all_permissions.predictions_any,
+        all_permissions.avatar_any,
+        all_permissions.labels_view,
+        all_permissions.users_token_any,
+        all_permissions.views_view,
+    },
+}
+
+
+def get_user_role_for_organization(user):
+    """Get the user's role in their active organization.
+
+    Returns the role string or None if the user has no active organization membership.
+    """
+    if not user.is_authenticated or not user.active_organization_id:
+        return None
+
+    from organizations.models import OrganizationMember
+
+    try:
+        membership = OrganizationMember.objects.get(
+            user=user,
+            organization_id=user.active_organization_id,
+            deleted_at__isnull=True,
+        )
+        return membership.role
+    except OrganizationMember.DoesNotExist:
+        return None
+
+
+def get_permissions_for_role(role):
+    """Return the set of permission strings allowed for a given role."""
+    return ROLE_PERMISSIONS.get(role, set())
+
+
+def user_has_permission(user, permission_name):
+    """Check if the user has a specific permission based on their role."""
+    role = get_user_role_for_organization(user)
+    if role is None:
+        return False
+    return permission_name in get_permissions_for_role(role)
+
+
 def make_perm(name, pred, overwrite=False):
     if rules.perm_exists(name):
         if overwrite:

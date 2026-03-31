@@ -15,6 +15,23 @@ logger = logging.getLogger(__name__)
 OrganizationMemberMixin = load_func(settings.ORGANIZATION_MEMBER_MIXIN)
 
 
+class OrganizationMemberRole:
+    OWNER = 'owner'
+    MANAGER = 'manager'
+    REVIEWER = 'reviewer'
+    ANNOTATOR = 'annotator'
+
+    CHOICES = (
+        (OWNER, _('Owner')),
+        (MANAGER, _('Manager')),
+        (REVIEWER, _('Reviewer')),
+        (ANNOTATOR, _('Annotator')),
+    )
+
+    MANAGEMENT_ROLES = {OWNER, MANAGER}
+    ALL_ROLES = {OWNER, MANAGER, REVIEWER, ANNOTATOR}
+
+
 class OrganizationMember(OrganizationMemberMixin, models.Model):
     """ """
 
@@ -23,6 +40,15 @@ class OrganizationMember(OrganizationMemberMixin, models.Model):
     )
     organization = models.ForeignKey(
         'organizations.Organization', on_delete=models.CASCADE, help_text='Organization ID'
+    )
+
+    role = models.CharField(
+        _('role'),
+        max_length=20,
+        choices=OrganizationMemberRole.CHOICES,
+        default=OrganizationMemberRole.ANNOTATOR,
+        db_index=True,
+        help_text='The role of the user within the organization.',
     )
 
     created_at = models.DateTimeField(_('created at'), auto_now_add=True)
@@ -53,7 +79,23 @@ class OrganizationMember(OrganizationMemberMixin, models.Model):
 
     @cached_property
     def is_owner(self):
-        return self.user.id == self.organization.created_by.id
+        return self.role == OrganizationMemberRole.OWNER
+
+    @property
+    def is_manager(self):
+        return self.role == OrganizationMemberRole.MANAGER
+
+    @property
+    def is_reviewer(self):
+        return self.role == OrganizationMemberRole.REVIEWER
+
+    @property
+    def is_annotator(self):
+        return self.role == OrganizationMemberRole.ANNOTATOR
+
+    @property
+    def has_management_role(self):
+        return self.role in OrganizationMemberRole.MANAGEMENT_ROLES
 
     class Meta:
         ordering = ['pk']
@@ -137,13 +179,13 @@ class Organization(OrganizationMixin, models.Model):
     def has_permission(self, user):
         return OrganizationMember.objects.filter(user=user, organization=self, deleted_at__isnull=True).exists()
 
-    def add_user(self, user):
+    def add_user(self, user, role=OrganizationMemberRole.ANNOTATOR):
         if self.users.filter(pk=user.pk).exists():
             logger.debug('User already exists in organization.')
             return
 
         with transaction.atomic():
-            om = OrganizationMember(user=user, organization=self)
+            om = OrganizationMember(user=user, organization=self, role=role)
             om.save()
 
             return om
