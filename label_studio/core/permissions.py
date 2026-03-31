@@ -144,20 +144,41 @@ ROLE_PERMISSIONS = {
         all_permissions.views_delete,
     },
     'annotator': {
+        # Same as manager minus: organizations_invite, projects_create,
+        # projects_change, projects_delete, projects_reset_cache,
+        # tasks_create, tasks_change, tasks_delete, views_delete
         all_permissions.organizations_view,
         all_permissions.projects_view,
         all_permissions.tasks_view,
         all_permissions.annotations_create,
         all_permissions.annotations_view,
-        all_permissions.annotations_change,   # needed to update/save drafts and annotations
-        all_permissions.annotations_delete,   # needed to discard own annotations
+        all_permissions.annotations_change,
+        all_permissions.annotations_delete,
+        all_permissions.actions_perform,
         all_permissions.predictions_any,
         all_permissions.avatar_any,
+        all_permissions.labels_create,
         all_permissions.labels_view,
+        all_permissions.labels_change,
+        all_permissions.labels_delete,
+        all_permissions.models_create,
+        all_permissions.models_view,
+        all_permissions.models_change,
+        all_permissions.models_delete,
+        all_permissions.model_provider_connection_create,
+        all_permissions.model_provider_connection_view,
+        all_permissions.model_provider_connection_change,
+        all_permissions.model_provider_connection_delete,
+        all_permissions.webhooks_view,
+        all_permissions.webhooks_change,
         all_permissions.users_token_any,
+        all_permissions.storages_view,
+        all_permissions.storages_change,
+        all_permissions.storages_sync,
+        all_permissions.views_reset,
         all_permissions.views_view,
-        all_permissions.views_create,         # needed for data manager views
-        all_permissions.views_change,         # needed for data manager views
+        all_permissions.views_create,
+        all_permissions.views_change,
     },
 }
 

@@ -49,18 +49,24 @@ class TestRolePermissionMapping(APITestCase):
         self.assertNotIn(all_permissions.projects_change, reviewer_perms)
         self.assertNotIn(all_permissions.projects_delete, reviewer_perms)
 
-    def test_annotator_minimal_permissions(self):
+    def test_annotator_permissions(self):
         annotator_perms = ROLE_PERMISSIONS['annotator']
-        # Can view and annotate
+        # Can view projects and annotate
         self.assertIn(all_permissions.projects_view, annotator_perms)
         self.assertIn(all_permissions.annotations_create, annotator_perms)
         self.assertIn(all_permissions.annotations_view, annotator_perms)
-        # Cannot change or delete annotations
-        self.assertNotIn(all_permissions.annotations_change, annotator_perms)
-        self.assertNotIn(all_permissions.annotations_delete, annotator_perms)
-        # Cannot manage projects
+        self.assertIn(all_permissions.annotations_change, annotator_perms)
+        self.assertIn(all_permissions.annotations_delete, annotator_perms)
+        self.assertIn(all_permissions.actions_perform, annotator_perms)
+        # Cannot manage projects or tasks
         self.assertNotIn(all_permissions.projects_create, annotator_perms)
         self.assertNotIn(all_permissions.projects_change, annotator_perms)
+        self.assertNotIn(all_permissions.projects_delete, annotator_perms)
+        self.assertNotIn(all_permissions.tasks_create, annotator_perms)
+        self.assertNotIn(all_permissions.tasks_change, annotator_perms)
+        self.assertNotIn(all_permissions.tasks_delete, annotator_perms)
+        # Cannot invite users
+        self.assertNotIn(all_permissions.organizations_invite, annotator_perms)
 
     def test_get_permissions_for_unknown_role_returns_empty(self):
         self.assertEqual(get_permissions_for_role('unknown'), set())

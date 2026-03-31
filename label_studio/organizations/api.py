@@ -349,8 +349,8 @@ class OrganizationMemberRoleAPI(GetParentObjectMixin, generics.UpdateAPIView):
     """Allow owners and managers to change a member's role within the organization."""
 
     permission_required = ViewClassPermission(
-        PATCH=all_permissions.organizations_change,
-        PUT=all_permissions.organizations_change,
+        PATCH=all_permissions.organizations_view,
+        PUT=all_permissions.organizations_view,
     )
     parent_queryset = Organization.objects.all()
     parser_classes = (JSONParser, FormParser, MultiPartParser)
