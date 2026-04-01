@@ -96,6 +96,12 @@
         "decorators": ""
     },
     {
+        "url": "/api/organizations/roles",
+        "module": "organizations.api.OrganizationRolesAPI",
+        "name": "organizations:api:organization-roles-list",
+        "decorators": ""
+    },
+    {
         "url": "/api/invite",
         "module": "organizations.api.OrganizationInviteAPI",
         "name": "organizations:organization-invite",
@@ -1008,6 +1014,12 @@
         "decorators": ""
     },
     {
+        "url": "/data/local-files/",
+        "module": "io_storages.localfiles.views.localfiles_data",
+        "name": "storages:localfiles_data",
+        "decorators": ""
+    },
+    {
         "url": "/api/ml/",
         "module": "ml.api.MLBackendListAPI",
         "name": "ml:api:ml-list",
@@ -1137,12 +1149,6 @@
         "url": "/api/fsm/entities/<str:entity_name>/<int:entity_id>/transition/",
         "module": "fsm.api.FSMEntityTransitionAPI",
         "name": "fsm:fsm-entity-transition",
-        "decorators": ""
-    },
-    {
-        "url": "/data/local-files/",
-        "module": "io_storages.localfiles.views.localfiles_data",
-        "name": "storages:localfiles_data",
         "decorators": ""
     },
     {

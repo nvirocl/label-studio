@@ -177,7 +177,15 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
                 return settings.HOSTNAME + self.avatar.url
 
     def is_organization_admin(self, org_pk):
-        return True
+        from organizations.models import OrganizationMember, OrganizationMemberRole
+
+        try:
+            member = OrganizationMember.objects.get(
+                user=self, organization_id=org_pk, deleted_at__isnull=True
+            )
+            return member.has_role_at_least(OrganizationMemberRole.ADMINISTRATOR)
+        except OrganizationMember.DoesNotExist:
+            return False
 
     def active_organization_annotations(self):
         return self.annotations.filter(project__organization=self.active_organization)

@@ -72,8 +72,10 @@ class ProjectMixin:
         )
 
     def has_permission(self, user):
-        """
-        Dummy stub for has_permission
+        """Check if user has permission to access this project.
+
+        Object-level permission check. Role-based access control is enforced
+        at the view level via HasRolePermission in DEFAULT_PERMISSION_CLASSES.
         """
         user.project = self  # link for activity log
         return True

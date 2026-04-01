@@ -81,5 +81,18 @@ def make_perm(name, pred, overwrite=False):
     rules.add_perm(name, pred)
 
 
+def _check_role_permission(permission_name):
+    """Create a rules predicate that checks role-based permissions."""
+
+    @rules.predicate
+    def has_role_permission(user):
+        from core.role_permissions import user_has_permission
+
+        return user_has_permission(user, permission_name)
+
+    has_role_permission.__name__ = f'has_role_permission_{permission_name}'
+    return has_role_permission
+
+
 for _, permission_name in all_permissions:
-    make_perm(permission_name, rules.is_authenticated)
+    make_perm(permission_name, rules.is_authenticated & _check_role_permission(permission_name))

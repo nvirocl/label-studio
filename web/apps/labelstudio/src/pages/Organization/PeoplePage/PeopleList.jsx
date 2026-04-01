@@ -8,6 +8,7 @@ import { cn } from "../../../utils/bem";
 import { isDefined } from "../../../utils/helpers";
 import "./PeopleList.prefix.css";
 import { CopyableTooltip } from "../../../components/CopyableTooltip/CopyableTooltip";
+import { RoleBadge } from "./RoleBadge";
 
 export const PeopleList = ({ onSelect, selectedUser, defaultSelected }) => {
   const api = useAPI();
@@ -33,11 +34,11 @@ export const PeopleList = ({ onSelect, selectedUser, defaultSelected }) => {
   }, []);
 
   const selectUser = useCallback(
-    (user) => {
+    (user, role) => {
       if (selectedUser?.id === user.id) {
         onSelect?.(null);
       } else {
-        onSelect?.(user);
+        onSelect?.({ ...user, role });
       }
     },
     [selectedUser],
@@ -51,7 +52,7 @@ export const PeopleList = ({ onSelect, selectedUser, defaultSelected }) => {
     if (isDefined(defaultSelected) && usersList) {
       const selected = usersList.find(({ user }) => user.id === Number(defaultSelected));
 
-      if (selected) selectUser(selected.user);
+      if (selected) selectUser(selected.user, selected.role);
     }
   }, [usersList, defaultSelected]);
 
@@ -65,17 +66,18 @@ export const PeopleList = ({ onSelect, selectedUser, defaultSelected }) => {
                 <div className={cn("people-list").elem("column").mix("avatar").toClassName()} />
                 <div className={cn("people-list").elem("column").mix("email").toClassName()}>Email</div>
                 <div className={cn("people-list").elem("column").mix("name").toClassName()}>Name</div>
+                <div className={cn("people-list").elem("column").mix("role").toClassName()}>Role</div>
                 <div className={cn("people-list").elem("column").mix("last-activity").toClassName()}>Last Activity</div>
               </div>
               <div className={cn("people-list").elem("body").toClassName()}>
-                {usersList.map(({ user }) => {
+                {usersList.map(({ user, role }) => {
                   const active = user.id === selectedUser?.id;
 
                   return (
                     <div
                       key={`user-${user.id}`}
                       className={cn("people-list").elem("user").mod({ active }).toClassName()}
-                      onClick={() => selectUser(user)}
+                      onClick={() => selectUser(user, role)}
                     >
                       <div className={cn("people-list").elem("field").mix("avatar").toClassName()}>
                         <CopyableTooltip title={`User ID: ${user.id}`} textForCopy={user.id}>
@@ -85,6 +87,9 @@ export const PeopleList = ({ onSelect, selectedUser, defaultSelected }) => {
                       <div className={cn("people-list").elem("field").mix("email").toClassName()}>{user.email}</div>
                       <div className={cn("people-list").elem("field").mix("name").toClassName()}>
                         {user.first_name} {user.last_name}
+                      </div>
+                      <div className={cn("people-list").elem("field").mix("role").toClassName()}>
+                        <RoleBadge role={role} />
                       </div>
                       <div className={cn("people-list").elem("field").mix("last-activity").toClassName()}>
                         {formatDistance(new Date(user.last_activity), new Date(), { addSuffix: true })}

@@ -12,11 +12,13 @@ from django.utils.functional import cached_property
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from organizations.models import Organization, OrganizationMember
+from organizations.models import OrganizationMemberRole
 from organizations.serializers import (
     OrganizationIdSerializer,
     OrganizationInviteSerializer,
     OrganizationMemberListParamsSerializer,
     OrganizationMemberListSerializer,
+    OrganizationMemberRoleSerializer,
     OrganizationMemberSerializer,
     OrganizationSerializer,
 )
@@ -271,16 +273,20 @@ class OrganizationMemberDetailAPI(GetParentObjectMixin, generics.RetrieveDestroy
     permission_required = ViewClassPermission(
         GET=all_permissions.organizations_view,
         DELETE=all_permissions.organizations_change,
+        PATCH=all_permissions.organizations_change,
     )
     parent_queryset = Organization.objects.all()
     parser_classes = (JSONParser, FormParser, MultiPartParser)
     serializer_class = OrganizationMemberSerializer
-    http_method_names = ['delete', 'get']
+    http_method_names = ['delete', 'get', 'patch']
 
     @property
     def permission_classes(self):
         if self.request.method == 'DELETE':
             return [IsAuthenticated, HasObjectPermission]
+        if self.request.method == 'PATCH':
+            # Role changes are validated inside the patch method itself
+            return [IsAuthenticated]
         return api_settings.DEFAULT_PERMISSION_CLASSES
 
     def get_queryset(self):
@@ -300,6 +306,57 @@ class OrganizationMemberDetailAPI(GetParentObjectMixin, generics.RetrieveDestroy
         serializer = self.get_serializer(member)
         return Response(serializer.data)
 
+    @extend_schema(
+        tags=['Organizations'],
+        summary='Update organization member role',
+        description='Update the role of an organization member.',
+        request=OrganizationMemberRoleSerializer,
+        responses={200: OrganizationMemberSerializer()},
+        extensions={
+            'x-fern-sdk-group-name': ['organizations', 'members'],
+            'x-fern-sdk-method-name': 'update_role',
+            'x-fern-audiences': ['public'],
+        },
+    )
+    def patch(self, request, pk=None, user_pk=None):
+        org = self.parent_object
+        if org != request.user.active_organization:
+            raise PermissionDenied('You can update members only for your current active organization')
+
+        # Only owners and admins can change roles
+        requesting_member = org.get_member(request.user)
+        if requesting_member is None or not requesting_member.has_role_at_least(OrganizationMemberRole.ADMINISTRATOR):
+            raise PermissionDenied('Only owners and administrators can change member roles')
+
+        user = get_object_or_404(User, pk=user_pk)
+        member = get_object_or_404(OrganizationMember, user=user, organization=org, deleted_at__isnull=True)
+
+        # Cannot change owner's role
+        if member.role == OrganizationMemberRole.OWNER:
+            raise PermissionDenied('Cannot change the role of the organization owner')
+
+        # Non-owners cannot assign/remove admin role
+        new_role = request.data.get('role')
+        if new_role == OrganizationMemberRole.OWNER:
+            raise PermissionDenied('Owner role cannot be assigned via API')
+
+        if requesting_member.role != OrganizationMemberRole.OWNER:
+            if new_role == OrganizationMemberRole.ADMINISTRATOR:
+                raise PermissionDenied('Only the owner can assign the administrator role')
+            if member.role == OrganizationMemberRole.ADMINISTRATOR:
+                raise PermissionDenied('Only the owner can change an administrator\'s role')
+
+        serializer = OrganizationMemberRoleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        member.role = serializer.validated_data['role']
+        member.save(update_fields=['role'])
+
+        return Response(
+            OrganizationMemberSerializer(member, context=self.get_serializer_context()).data,
+            status=status.HTTP_200_OK,
+        )
+
     def delete(self, request, pk=None, user_pk=None):
         org = self.parent_object
         if org != request.user.active_organization:
@@ -315,6 +372,30 @@ class OrganizationMemberDetailAPI(GetParentObjectMixin, generics.RetrieveDestroy
 
         member.soft_delete()
         return Response(status=204)  # 204 No Content is a common HTTP status for successful delete requests
+
+
+@method_decorator(
+    name='get',
+    decorator=extend_schema(
+        tags=['Organizations'],
+        summary='List available roles',
+        description='List all available roles that can be assigned to organization members.',
+        extensions={
+            'x-fern-sdk-group-name': ['organizations', 'roles'],
+            'x-fern-sdk-method-name': 'list',
+            'x-fern-audiences': ['public'],
+        },
+    ),
+)
+class OrganizationRolesAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        roles = [
+            {'code': code, 'name': str(name)}
+            for code, name in OrganizationMemberRole.CHOICES
+        ]
+        return Response(roles, status=200)
 
 
 @method_decorator(

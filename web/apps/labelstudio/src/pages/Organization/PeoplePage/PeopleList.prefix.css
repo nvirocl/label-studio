@@ -52,6 +52,10 @@
       width: 200px;
     }
 
+    &.role {
+      width: 140px;
+    }
+
     &.last-activity {
       width: 160px;
     }
