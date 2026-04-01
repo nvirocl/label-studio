@@ -23,6 +23,9 @@ ROLE_PERMISSIONS = {
         'avatar.any',
         'labels.view',
         'views.view',
+        'views.create',
+        'views.change',
+        'views.delete',
         'users.token.any',
     },
     OrganizationMemberRole.REVIEWER: {

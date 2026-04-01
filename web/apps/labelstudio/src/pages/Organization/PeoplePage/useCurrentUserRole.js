@@ -22,6 +22,8 @@ export const useCurrentUserRole = () => {
   }, [api]);
 
   const canManageRoles = role === "OW" || role === "AD";
+  // Managers, Admins and Owners can access project settings and configuration
+  const canManageProject = role === "OW" || role === "AD" || role === "MA";
 
-  return { role, canManageRoles };
+  return { role, canManageRoles, canManageProject };
 };

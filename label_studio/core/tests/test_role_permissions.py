@@ -52,6 +52,10 @@ class TestRolePermissionsMapping:
         assert 'annotations.view' in annotator_perms
         assert 'tasks.view' in annotator_perms
         assert 'projects.view' in annotator_perms
+        assert 'views.view' in annotator_perms
+        assert 'views.create' in annotator_perms
+        assert 'views.change' in annotator_perms
+        assert 'views.delete' in annotator_perms
         assert 'projects.create' not in annotator_perms
         assert 'tasks.create' not in annotator_perms
         assert 'tasks.change' not in annotator_perms

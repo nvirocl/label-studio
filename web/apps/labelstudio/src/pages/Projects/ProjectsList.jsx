@@ -8,6 +8,7 @@ import { Menu, Pagination } from "../../components";
 import { cn } from "../../utils/bem";
 import { absoluteURL } from "../../utils/helpers";
 import { ProjectStateChip } from "@humansignal/app-common";
+import { useCurrentUserRole } from "../Organization/PeoplePage/useCurrentUserRole";
 
 const DEFAULT_CARD_COLORS = ["#FFFFFF", "#FDFDFC"];
 
@@ -53,6 +54,7 @@ export const EmptyProjectsList = ({ openModal }) => {
 };
 
 const ProjectCard = ({ project }) => {
+  const { canManageProject } = useCurrentUserRole();
   const color = useMemo(() => {
     return DEFAULT_CARD_COLORS.includes(project.color) ? null : project.color;
   }, [project]);
@@ -99,7 +101,9 @@ const ProjectCard = ({ project }) => {
               <Dropdown.Trigger
                 content={
                   <Menu contextual>
-                    <Menu.Item href={`/projects/${project.id}/settings`}>Settings</Menu.Item>
+                    {canManageProject && (
+                      <Menu.Item href={`/projects/${project.id}/settings`}>Settings</Menu.Item>
+                    )}
                     <Menu.Item href={`/projects/${project.id}/data?labeling=1`}>Label</Menu.Item>
                   </Menu>
                 }

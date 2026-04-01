@@ -13,6 +13,7 @@ import { cn } from "../../utils/bem";
 import { isDefined } from "../../utils/helpers";
 import { ImportModal } from "../CreateProject/Import/ImportModal";
 import { ExportPage } from "../ExportPage/ExportPage";
+import { useCurrentUserRole } from "../Organization/PeoplePage/useCurrentUserRole";
 import { APIConfig } from "./api-config";
 
 import "./DataManager.prefix.css";
@@ -241,10 +242,9 @@ DataManagerPage.pages = {
 DataManagerPage.context = ({ dmRef }) => {
   const { project } = useProject();
   const [mode, setMode] = useState(dmRef?.mode ?? "explorer");
+  const { canManageProject } = useCurrentUserRole();
 
-  const links = {
-    "/settings": "Settings",
-  };
+  const links = canManageProject ? { "/settings": "Settings" } : {};
 
   const updateCrumbs = (currentMode) => {
     const isExplorer = currentMode === "explorer";
