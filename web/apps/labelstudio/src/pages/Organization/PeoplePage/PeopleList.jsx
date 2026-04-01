@@ -10,7 +10,7 @@ import "./PeopleList.prefix.css";
 import { CopyableTooltip } from "../../../components/CopyableTooltip/CopyableTooltip";
 import { RoleBadge } from "./RoleBadge";
 
-export const PeopleList = ({ onSelect, selectedUser, defaultSelected }) => {
+export const PeopleList = ({ onSelect, selectedUser, defaultSelected, roleUpdate }) => {
   const api = useAPI();
   const [usersList, setUsersList] = useState();
   const [currentPage] = usePage("page", 1);
@@ -47,6 +47,16 @@ export const PeopleList = ({ onSelect, selectedUser, defaultSelected }) => {
   useEffect(() => {
     fetchUsers(currentPage, currentPageSize);
   }, []);
+
+  useEffect(() => {
+    if (roleUpdate && usersList) {
+      setUsersList((prev) =>
+        prev.map((item) =>
+          item.user.id === roleUpdate.userId ? { ...item, role: roleUpdate.newRole } : item,
+        ),
+      );
+    }
+  }, [roleUpdate]);
 
   useEffect(() => {
     if (isDefined(defaultSelected) && usersList) {

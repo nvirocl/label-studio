@@ -51,9 +51,15 @@ class TestRolePermissionsMapping:
         assert 'annotations.create' in annotator_perms
         assert 'annotations.view' in annotator_perms
         assert 'tasks.view' in annotator_perms
+        assert 'projects.view' in annotator_perms
         assert 'projects.create' not in annotator_perms
         assert 'tasks.create' not in annotator_perms
         assert 'tasks.change' not in annotator_perms
+
+    def test_reviewer_has_projects_view(self):
+        reviewer_perms = ROLE_PERMISSIONS[OrganizationMemberRole.REVIEWER]
+        assert 'projects.view' in reviewer_perms
+        assert 'projects.create' not in reviewer_perms
 
     def test_deactivated_no_permissions(self):
         assert OrganizationMemberRole.DEACTIVATED not in ROLE_PERMISSIONS

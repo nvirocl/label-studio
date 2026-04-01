@@ -222,6 +222,18 @@
         "decorators": ""
     },
     {
+        "url": "/api/projects/<pk>/members/",
+        "module": "projects.api.ProjectMemberListAPI",
+        "name": "projects:api:project-members-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/projects/<pk>/members/<user_pk>/",
+        "module": "projects.api.ProjectMemberDetailAPI",
+        "name": "projects:api:project-members-detail",
+        "decorators": ""
+    },
+    {
         "url": "/api/templates/",
         "module": "projects.api.TemplateListAPI",
         "name": "projects:api-templates:template-list",

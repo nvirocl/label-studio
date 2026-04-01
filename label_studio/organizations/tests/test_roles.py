@@ -2,6 +2,7 @@ from urllib.parse import urlencode
 
 from organizations.models import OrganizationMember, OrganizationMemberRole
 from organizations.tests.factories import OrganizationFactory
+from projects.models import Project, ProjectMember
 from rest_framework import status
 from rest_framework.test import APITestCase
 from users.tests.factories import UserFactory
@@ -338,3 +339,152 @@ class TestDeactivatedUserAccess(APITestCase):
         data = response.json()
         assert data['org_role'] == OrganizationMemberRole.DEACTIVATED
         assert len(data['permissions']) == 0
+
+
+class TestProjectMembershipFiltering(APITestCase):
+    """Test that annotators/reviewers only see projects they are assigned to."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.organization = OrganizationFactory(created_by__username='owner')
+        cls.owner = cls.organization.created_by
+
+        cls.manager = UserFactory(username='manager', active_organization=cls.organization)
+        OrganizationMember.objects.filter(
+            user=cls.manager, organization=cls.organization
+        ).update(role=OrganizationMemberRole.MANAGER)
+
+        cls.annotator = UserFactory(username='annotator', active_organization=cls.organization)
+        # annotator gets default Annotator role
+
+        cls.reviewer = UserFactory(username='reviewer', active_organization=cls.organization)
+        OrganizationMember.objects.filter(
+            user=cls.reviewer, organization=cls.organization
+        ).update(role=OrganizationMemberRole.REVIEWER)
+
+        # Create two projects
+        cls.project1 = Project.objects.create(
+            title='Project 1', organization=cls.organization, created_by=cls.owner
+        )
+        cls.project2 = Project.objects.create(
+            title='Project 2', organization=cls.organization, created_by=cls.owner
+        )
+
+        # Assign annotator to project1 only
+        ProjectMember.objects.create(user=cls.annotator, project=cls.project1)
+        # Assign reviewer to project2 only
+        ProjectMember.objects.create(user=cls.reviewer, project=cls.project2)
+
+    def test_owner_sees_all_projects(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get('/api/projects/')
+        assert response.status_code == 200
+        project_ids = {p['id'] for p in response.json()['results']}
+        assert self.project1.id in project_ids
+        assert self.project2.id in project_ids
+
+    def test_manager_sees_all_projects(self):
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get('/api/projects/')
+        assert response.status_code == 200
+        project_ids = {p['id'] for p in response.json()['results']}
+        assert self.project1.id in project_ids
+        assert self.project2.id in project_ids
+
+    def test_annotator_sees_only_assigned_projects(self):
+        self.client.force_authenticate(user=self.annotator)
+        response = self.client.get('/api/projects/')
+        assert response.status_code == 200
+        project_ids = {p['id'] for p in response.json()['results']}
+        assert self.project1.id in project_ids
+        assert self.project2.id not in project_ids
+
+    def test_reviewer_sees_only_assigned_projects(self):
+        self.client.force_authenticate(user=self.reviewer)
+        response = self.client.get('/api/projects/')
+        assert response.status_code == 200
+        project_ids = {p['id'] for p in response.json()['results']}
+        assert self.project2.id in project_ids
+        assert self.project1.id not in project_ids
+
+    def test_annotator_cannot_access_unassigned_project_detail(self):
+        self.client.force_authenticate(user=self.annotator)
+        response = self.client.get(f'/api/projects/{self.project2.id}/')
+        assert response.status_code == 404
+
+    def test_annotator_can_access_assigned_project_detail(self):
+        self.client.force_authenticate(user=self.annotator)
+        response = self.client.get(f'/api/projects/{self.project1.id}/')
+        assert response.status_code == 200
+
+
+class TestProjectMemberAPI(APITestCase):
+    """Test the project members management API."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.organization = OrganizationFactory(created_by__username='owner')
+        cls.owner = cls.organization.created_by
+
+        cls.annotator = UserFactory(username='annotator', active_organization=cls.organization)
+        cls.annotator2 = UserFactory(username='annotator2', active_organization=cls.organization)
+
+        cls.project = Project.objects.create(
+            title='Test Project', organization=cls.organization, created_by=cls.owner
+        )
+
+    def test_list_project_members(self):
+        ProjectMember.objects.create(user=self.annotator, project=self.project)
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get(f'/api/projects/{self.project.id}/members/')
+        assert response.status_code == 200
+        user_ids = [u['id'] for u in response.json()]
+        assert self.annotator.id in user_ids
+
+    def test_add_project_member(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.post(
+            f'/api/projects/{self.project.id}/members/',
+            data={'user_id': self.annotator.id},
+            format='json',
+        )
+        assert response.status_code == 201
+        assert ProjectMember.objects.filter(user=self.annotator, project=self.project).exists()
+
+    def test_add_member_idempotent(self):
+        ProjectMember.objects.create(user=self.annotator, project=self.project)
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.post(
+            f'/api/projects/{self.project.id}/members/',
+            data={'user_id': self.annotator.id},
+            format='json',
+        )
+        assert response.status_code == 200  # Already exists, not 201
+
+    def test_remove_project_member(self):
+        ProjectMember.objects.create(user=self.annotator, project=self.project)
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.delete(
+            f'/api/projects/{self.project.id}/members/{self.annotator.id}/'
+        )
+        assert response.status_code == 204
+        assert not ProjectMember.objects.filter(user=self.annotator, project=self.project).exists()
+
+    def test_annotator_cannot_add_member(self):
+        self.client.force_authenticate(user=self.annotator)
+        response = self.client.post(
+            f'/api/projects/{self.project.id}/members/',
+            data={'user_id': self.annotator2.id},
+            format='json',
+        )
+        assert response.status_code == 403
+
+    def test_cannot_add_non_org_member(self):
+        outsider = UserFactory(username='outsider')
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.post(
+            f'/api/projects/{self.project.id}/members/',
+            data={'user_id': outsider.id},
+            format='json',
+        )
+        assert response.status_code == 400

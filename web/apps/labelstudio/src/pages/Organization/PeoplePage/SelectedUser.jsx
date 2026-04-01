@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { IconCross } from "@humansignal/icons";
 import { Userpic, Button } from "@humansignal/ui";
@@ -42,6 +42,11 @@ export const SelectedUser = ({ user, onClose, onRoleChanged }) => {
   const [error, setError] = useState(null);
   const { canManageRoles } = useCurrentUserRole();
   const isOwner = role === "OW";
+
+  useEffect(() => {
+    setRole(user.role);
+    setError(null);
+  }, [user.id, user.role]);
 
   const handleRoleChange = useCallback(
     async (e) => {

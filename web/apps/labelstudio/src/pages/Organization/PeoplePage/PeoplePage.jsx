@@ -21,6 +21,7 @@ export const PeoplePage = () => {
   const toast = useToast();
   const [selectedUser, setSelectedUser] = useState(null);
   const [invitationOpen, setInvitationOpen] = useState(false);
+  const [roleUpdate, setRoleUpdate] = useState(null);
   const { canManageRoles } = useCurrentUserRole();
 
   useUpdatePageTitle("People");
@@ -36,11 +37,10 @@ export const PeoplePage = () => {
 
   const handleRoleChanged = useCallback(
     (userId, newRole) => {
-      if (selectedUser && selectedUser.id === userId) {
-        setSelectedUser((prev) => ({ ...prev, role: newRole }));
-      }
+      setSelectedUser((prev) => (prev && prev.id === userId ? { ...prev, role: newRole } : prev));
+      setRoleUpdate({ userId, newRole });
     },
-    [selectedUser],
+    [],
   );
 
   const apiTokensSettingsModalProps = useMemo(
@@ -97,6 +97,7 @@ export const PeoplePage = () => {
           selectedUser={selectedUser}
           defaultSelected={defaultSelected}
           onSelect={(user) => selectUser(user)}
+          roleUpdate={roleUpdate}
         />
 
         {selectedUser ? (
