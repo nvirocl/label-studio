@@ -1,0 +1,18 @@
+{
+  "name": "deploy-label-studio",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Edward Moreno <edward.moreno@ing.uchile.cl>",
+  "license": "ISC",
+  "dependencies": {
+    "@dotenvx/dotenvx": "^1.59.1",
+    "@nvirocl/infra-cdk": "file:nvirocl-infra-cdk-1.2.0.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.15"
+  }
+}
