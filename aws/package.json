@@ -4,15 +4,23 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prod:deploy": "npx cdk deploy --all",
+    "prod:setup-ssm": "npx ts-node --transpile-only scripts/setup-ssm.ts"
   },
   "author": "Edward Moreno <edward.moreno@ing.uchile.cl>",
   "license": "ISC",
+  "imports": {
+    "#lib/*": "./lib/*.ts",
+    "#bin/*": "./bin/*.ts"
+  },
   "dependencies": {
     "@dotenvx/dotenvx": "^1.59.1",
-    "@nvirocl/infra-cdk": "file:nvirocl-infra-cdk-1.2.0.tgz"
+    "@nvirocl/infra-cdk": "file:nvirocl-infra-cdk-1.2.0.tgz",
+    "@nvirocl/js-utils": "^2.1.3"
   },
   "devDependencies": {
-    "@types/node": "^22.19.15"
+    "@types/node": "^22.19.15",
+    "typescript": "^6.0.2"
   }
 }

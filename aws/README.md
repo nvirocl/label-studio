@@ -1,9 +1,29 @@
 # Label Studio — AWS CDK Deploy
 
-Infraestructura AWS para Label Studio usando CDK (TypeScript). Incluye dos stacks:
+Infraestructura AWS para Label Studio usando CDK (TypeScript).
+
+## Estructura del proyecto
+
+```
+aws/
+├── bin/
+│   └── app.ts                  # Entry point CDK — instancia los stacks
+├── lib/
+│   ├── foundation-stack.ts     # Stack ECR (repositorio de imágenes)
+│   └── ecs-service-stack.ts    # Stack ECS (servicio, EFS, SSM)
+├── scripts/
+│   └── setup-ssm.ts            # Sube parámetros a SSM Parameter Store
+├── .env                        # Variables locales (no commitear)
+├── .env.example                # Plantilla de variables
+├── buildAndPushImage.sh        # Build y push de imagen Docker a ECR
+├── cdk.json
+└── package.json
+```
+
+## Stacks
 
 - **`label-studio-ecr-stack`** — Repositorio ECR para las imágenes Docker.
-- **`label-studio-ecs-stack`** — Servicio ECS en un ALB existente.
+- **`label-studio-{env}`** — Servicio ECS con ALB, EFS y variables desde SSM.
 
 ## Requisitos previos
 
@@ -22,16 +42,26 @@ cp .env.example .env
 
 Variables requeridas en `.env`:
 
-| Variable                     | Descripción                                      |
-|------------------------------|--------------------------------------------------|
-| `ALB_ARN`                    | ARN del Application Load Balancer existente      |
-| `ALB_DNS`                    | DNS del ALB                                      |
-| `ALB_SG_ID`                  | ID del Security Group del ALB                    |
-| `ALB_CANONICAL_HOSTED_ZONE_ID` | Hosted Zone ID canónico del ALB               |
-| `LISTENER_ARN`               | ARN del listener HTTPS del ALB                   |
-| `CLUSTER_NAME`               | Nombre del cluster ECS                           |
-| `REPOSITORY_NAME`            | Nombre del repositorio ECR (ej. `org/app`)       |
-| `DOMAIN_NAMES`               | Dominios separados por coma (ej. `app.example.com`) |
+| Variable                       | Descripción                                           |
+|--------------------------------|-------------------------------------------------------|
+| `APP_ENV`                      | Ambiente: `development`, `staging` o `production`     |
+| `ALB_ARN`                      | ARN del Application Load Balancer existente           |
+| `ALB_DNS`                      | DNS del ALB                                           |
+| `ALB_SG_ID`                    | ID del Security Group del ALB                         |
+| `ALB_CANONICAL_HOSTED_ZONE_ID` | Hosted Zone ID canónico del ALB                       |
+| `LISTENER_ARN`                 | ARN del listener HTTPS del ALB                        |
+| `CLUSTER_NAME`                 | Nombre del cluster ECS                                |
+| `REPOSITORY_NAME`              | Nombre del repositorio ECR (ej. `org/app`)            |
+| `DOMAIN_NAME`                  | Dominio del servicio (ej. `app.example.com`)          |
+| `EFS_FILE_SYSTEM_ID`           | ID del sistema de archivos EFS                        |
+| `EFS_SG_ID`                    | ID del Security Group del EFS                         |
+| `DB_HOST`                      | Host del servidor PostgreSQL (solo para `prod:setup-ssm`)  |
+| `DB_USER`                      | Usuario de la base de datos (solo para `prod:setup-ssm`)   |
+| `DB_NAME`                      | Nombre de la base de datos (solo para `prod:setup-ssm`)    |
+| `DB_PORT`                      | Puerto PostgreSQL, default `5432` (solo para `prod:setup-ssm`) |
+| `DB_PASSWORD`                  | Contraseña DB — se sube como SecureString (solo para `prod:setup-ssm`) |
+| `LABEL_STUDIO_USERNAME`        | Email del admin (solo para `prod:setup-ssm`)               |
+| `LABEL_STUDIO_PASSWORD`        | Contraseña del admin — se sube como SecureString (solo para `prod:setup-ssm`) |
 
 ## Instalación de dependencias
 
@@ -39,49 +69,68 @@ Variables requeridas en `.env`:
 npm ci
 ```
 
-## Despliegue
+## Subir parámetros a SSM
 
-### Todos los stacks
-
-```bash
-npx cdk deploy --all
-```
-
-### Solo el repositorio ECR
+Antes del primer deploy, sube los parámetros a SSM:
 
 ```bash
-npx cdk deploy label-studio-ecr-stack
+npm run prod:setup-ssm
 ```
 
-### Solo el servicio ECS
+Esto sube todos los parámetros de DB y Label Studio a SSM bajo `/label-studio/{APP_ENV}/`:
 
-> Requiere que el stack ECR ya esté desplegado.
+| Parámetro SSM            | Tipo           |
+|--------------------------|----------------|
+| `DB_HOST`                | String         |
+| `DB_USER`                | String         |
+| `DB_NAME`                | String         |
+| `DB_PORT`                | String         |
+| `DB_PASSWORD`            | SecureString   |
+| `LABEL_STUDIO_USERNAME`  | String         |
+| `LABEL_STUDIO_PASSWORD`  | SecureString   |
 
-```bash
-npx cdk deploy label-studio-ecs-stack
+El contenedor recibe estos valores como secrets en runtime — no aparecen en CloudFormation.
+
+## Versión de la imagen
+
+El tag de la imagen ECR se construye automáticamente como `v{version}` desde el campo `version` en `package.json`. Para deployar una nueva versión, actualiza ese campo antes de deployar:
+
+```json
+{ "version": "1.2.0" }
 ```
+
+El stack usará `v1.2.0` como tag al hacer deploy.
 
 ## Construir y subir imagen Docker
 
 El script `buildAndPushImage.sh` construye la imagen y la sube a ECR.
-La versión de la imagen se toma del campo `version` en `package.json`, a menos que se pase como argumento.
-
-### Usando la versión de `package.json`
+La versión se toma del campo `version` en `package.json`, a menos que se pase como argumento.
 
 ```bash
-./buildAndPushImage.sh
+./buildAndPushImage.sh          # usa versión de package.json
+./buildAndPushImage.sh 2.1.0    # versión manual
 ```
 
-### Especificando una versión manualmente
+## Despliegue
 
 ```bash
-./buildAndPushImage.sh 2.1.0
+npm run prod:deploy
 ```
 
-La imagen se taguea como `v<version>` y se sube al repositorio ECR configurado en `REPOSITORY_NAME`.
+Para deployar un stack específico:
+
+```bash
+npx cdk deploy label-studio-ecr-stack          # solo ECR
+npx cdk deploy label-studio-production         # solo ECS
+```
 
 ## Destruir los stacks
 
+> **Importante:** el certificado ACM no se elimina en el primer intento debido a que
+> CloudFormation no puede eliminarlo mientras el listener del ALB aún lo referencia.
+> Es necesario ejecutar el destroy **dos veces**:
+
 ```bash
-npx cdk destroy --all
+npx cdk destroy --all   # primer intento — puede fallar en el certificado
+npx cdk destroy --all   # segundo intento — elimina el certificado y el resto
 ```

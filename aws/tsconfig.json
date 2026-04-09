@@ -11,7 +11,13 @@
     "alwaysStrict": true,
     "outDir": "./dist",
     "rootDir": ".",
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "esModuleInterop": true,
+    "paths": {
+      "#lib/*": ["lib/*"],
+      "#bin/*": ["bin/*"]
+    },
     "resolveJsonModule": true,
     "types": ["node"]
   },
