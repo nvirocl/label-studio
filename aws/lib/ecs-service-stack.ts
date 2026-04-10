@@ -96,8 +96,8 @@ export class LabelStudioEcsServiceStack extends cdk.Stack {
     new EcsService(this, 'LabelStudioService', {
       name: 'label-studio',
       containerPort: 8080,
-      cpu: 256,
-      memory: 512,
+      cpu: 1024,
+      memory: 2048,
       launchType: ecs.LaunchType.EC2,
       ecrRepositoryName: repositoryName,
       ecrImageTag: imageTag,
