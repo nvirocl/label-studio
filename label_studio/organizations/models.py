@@ -15,6 +15,42 @@ logger = logging.getLogger(__name__)
 OrganizationMemberMixin = load_func(settings.ORGANIZATION_MEMBER_MIXIN)
 
 
+class OrganizationMemberRole:
+    OWNER = 'OW'
+    ADMINISTRATOR = 'AD'
+    MANAGER = 'MA'
+    REVIEWER = 'RE'
+    ANNOTATOR = 'AN'
+    NOT_ACTIVATED = 'NO'
+    DEACTIVATED = 'DI'
+
+    CHOICES = (
+        (OWNER, _('Owner')),
+        (ADMINISTRATOR, _('Administrator')),
+        (MANAGER, _('Manager')),
+        (REVIEWER, _('Reviewer')),
+        (ANNOTATOR, _('Annotator')),
+        (NOT_ACTIVATED, _('Not Activated')),
+        (DEACTIVATED, _('Deactivated')),
+    )
+
+    # Hierarchy: higher number = more permissions
+    HIERARCHY = {
+        DEACTIVATED: 0,
+        NOT_ACTIVATED: 0,
+        ANNOTATOR: 10,
+        REVIEWER: 20,
+        MANAGER: 30,
+        ADMINISTRATOR: 40,
+        OWNER: 50,
+    }
+
+    @classmethod
+    def has_at_least(cls, role, minimum_role):
+        """Check if a role has at least the same level as minimum_role."""
+        return cls.HIERARCHY.get(role, 0) >= cls.HIERARCHY.get(minimum_role, 0)
+
+
 class OrganizationMember(OrganizationMemberMixin, models.Model):
     """ """
 
@@ -23,6 +59,15 @@ class OrganizationMember(OrganizationMemberMixin, models.Model):
     )
     organization = models.ForeignKey(
         'organizations.Organization', on_delete=models.CASCADE, help_text='Organization ID'
+    )
+
+    role = models.CharField(
+        _('role'),
+        max_length=2,
+        choices=OrganizationMemberRole.CHOICES,
+        default=OrganizationMemberRole.ANNOTATOR,
+        db_index=True,
+        help_text='Role of the user in the organization.',
     )
 
     created_at = models.DateTimeField(_('created at'), auto_now_add=True)
@@ -53,7 +98,15 @@ class OrganizationMember(OrganizationMemberMixin, models.Model):
 
     @cached_property
     def is_owner(self):
-        return self.user.id == self.organization.created_by.id
+        return self.role == OrganizationMemberRole.OWNER
+
+    @property
+    def role_display(self):
+        return dict(OrganizationMemberRole.CHOICES).get(self.role, self.role)
+
+    def has_role_at_least(self, minimum_role):
+        """Check if this member has at least the given role level."""
+        return OrganizationMemberRole.has_at_least(self.role, minimum_role)
 
     class Meta:
         ordering = ['pk']
@@ -137,13 +190,37 @@ class Organization(OrganizationMixin, models.Model):
     def has_permission(self, user):
         return OrganizationMember.objects.filter(user=user, organization=self, deleted_at__isnull=True).exists()
 
-    def add_user(self, user):
+    def get_member(self, user):
+        """Get the OrganizationMember for a user, or None if not found."""
+        try:
+            return OrganizationMember.objects.get(user=user, organization=self, deleted_at__isnull=True)
+        except OrganizationMember.DoesNotExist:
+            return None
+
+    def get_user_role(self, user):
+        """Get the role of a user in this organization."""
+        member = self.get_member(user)
+        if member is None:
+            return None
+        return member.role
+
+    def user_has_role_at_least(self, user, minimum_role):
+        """Check if a user has at least the given role level in this organization."""
+        role = self.get_user_role(user)
+        if role is None:
+            return False
+        return OrganizationMemberRole.has_at_least(role, minimum_role)
+
+    def add_user(self, user, role=None):
         if self.users.filter(pk=user.pk).exists():
             logger.debug('User already exists in organization.')
             return
 
+        if role is None:
+            role = OrganizationMemberRole.ANNOTATOR
+
         with transaction.atomic():
-            om = OrganizationMember(user=user, organization=self)
+            om = OrganizationMember(user=user, organization=self, role=role)
             om.save()
 
             return om

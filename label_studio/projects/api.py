@@ -172,6 +172,8 @@ class ProjectListAPI(generics.ListCreateAPIView):
     pagination_class = ProjectListPagination
 
     def get_queryset(self):
+        from organizations.models import OrganizationMemberRole
+
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
@@ -179,6 +181,12 @@ class ProjectListAPI(generics.ListCreateAPIView):
         projects = Project.objects.filter(organization=self.request.user.active_organization).order_by(
             F('pinned_at').desc(nulls_last=True), '-created_at'
         )
+
+        # Annotators and Reviewers can only see projects they are explicitly assigned to
+        org = self.request.user.active_organization
+        if org is not None and not org.user_has_role_at_least(self.request.user, OrganizationMemberRole.MANAGER):
+            projects = projects.filter(members__user=self.request.user)
+
         if filter in ['pinned_only', 'exclude_pinned']:
             projects = projects.filter(pinned_at__isnull=filter == 'exclude_pinned')
         projects = ProjectManager.with_counts_annotate(projects, fields=fields)
@@ -240,12 +248,19 @@ class ProjectCountsListAPI(generics.ListAPIView):
     pagination_class = ProjectListPagination
 
     def get_queryset(self):
+        from organizations.models import OrganizationMemberRole
+
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
         projects = Project.objects.with_counts(fields=fields).filter(
             organization=self.request.user.active_organization
         )
+
+        # Annotators and Reviewers can only see projects they are explicitly assigned to
+        org = self.request.user.active_organization
+        if org is not None and not org.user_has_role_at_least(self.request.user, OrganizationMemberRole.MANAGER):
+            projects = projects.filter(members__user=self.request.user)
 
         # Only annotate FSM state for UI/API consumption when both feature flags are enabled
         if flag_set('fflag_feat_fit_568_finite_state_management', user=self.request.user) and flag_set(
@@ -374,12 +389,19 @@ class ProjectAPI(generics.RetrieveUpdateDestroyAPIView):
     redirect_kwarg = 'pk'
 
     def get_queryset(self):
+        from organizations.models import OrganizationMemberRole
+
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
         projects = Project.objects.with_counts(fields=fields).filter(
             organization=self.request.user.active_organization
         )
+
+        # Annotators and Reviewers can only access projects they are explicitly assigned to
+        org = self.request.user.active_organization
+        if org is not None and not org.user_has_role_at_least(self.request.user, OrganizationMemberRole.MANAGER):
+            projects = projects.filter(members__user=self.request.user)
 
         # Only annotate FSM state for UI/API consumption when both feature flags are enabled
         if flag_set('fflag_feat_fit_568_finite_state_management', user=self.request.user) and flag_set(
@@ -924,3 +946,82 @@ class ProjectAnnotatorsAPI(generics.RetrieveAPIView):
         users = User.objects.filter(id__in=annotator_ids).prefetch_related('om_through').order_by('id')
         data = UserSimpleSerializer(users, many=True, context={'request': request}).data
         return Response(data)
+
+
+class ProjectMemberListAPI(generics.ListCreateAPIView):
+    """List project members or add a user to a project.
+
+    GET: Returns all users assigned to this project.
+    POST: Assigns a user to this project (requires manager+ role).
+    """
+
+    permission_required = ViewClassPermission(
+        GET=all_permissions.projects_view,
+        POST=all_permissions.projects_change,
+    )
+    serializer_class = UserSimpleSerializer
+
+    def get_project(self):
+        return generics.get_object_or_404(
+            Project.objects.filter(organization=self.request.user.active_organization),
+            pk=self.kwargs['pk'],
+        )
+
+    def get_queryset(self):
+        project = self.get_project()
+        member_user_ids = project.members.values_list('user_id', flat=True)
+        return User.objects.filter(id__in=member_user_ids).prefetch_related('om_through').order_by('id')
+
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        from projects.models import ProjectMember
+
+        project = self.get_project()
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({'detail': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = generics.get_object_or_404(User, pk=user_id)
+
+        # Ensure user belongs to the same organization
+        org = request.user.active_organization
+        if not org.has_user(user):
+            return Response(
+                {'detail': 'User is not a member of this organization'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        created = project.add_collaborator(user)
+        if created:
+            return Response(
+                UserSimpleSerializer(user, context={'request': request}).data,
+                status=status.HTTP_201_CREATED,
+            )
+        return Response(
+            UserSimpleSerializer(user, context={'request': request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class ProjectMemberDetailAPI(generics.DestroyAPIView):
+    """Remove a user from a project."""
+
+    permission_required = ViewClassPermission(
+        DELETE=all_permissions.projects_change,
+    )
+
+    def get_project(self):
+        return generics.get_object_or_404(
+            Project.objects.filter(organization=self.request.user.active_organization),
+            pk=self.kwargs['pk'],
+        )
+
+    def delete(self, request, pk=None, user_pk=None):
+        from projects.models import ProjectMember
+
+        project = self.get_project()
+        membership = generics.get_object_or_404(ProjectMember, project=project, user_id=user_pk)
+        membership.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

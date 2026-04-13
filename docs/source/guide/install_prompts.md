@@ -80,13 +80,13 @@ Create a file named `custom.values.yaml` with the following contents:
 adala-app:
   deployment:
     image:
-      tag: 20250428.151611-master-592e818
+      tag: 20260409.063233-main-6b619568
       pullSecrets:
         - heartex-pull-key
 adala-worker:
   deployment:
     image:
-      tag: 20250428.151611-master-592e818
+      tag: 20260409.063233-main-6b619568
       pullSecrets:
         - heartex-pull-key
 ```

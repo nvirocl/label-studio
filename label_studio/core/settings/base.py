@@ -274,6 +274,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'core.api_permissions.HasObjectPermission',
         'rest_framework.permissions.IsAuthenticated',
+        'core.api_permissions.HasRolePermission',
     ],
     'EXCEPTION_HANDLER': 'core.utils.common.custom_exception_handler',
     'DEFAULT_RENDERER_CLASSES': ('rest_framework.renderers.JSONRenderer',),

@@ -14,12 +14,15 @@ import { IconPlus } from "@humansignal/icons";
 import { useToast } from "@humansignal/ui";
 import { InviteLink } from "./InviteLink";
 import { SelectedUser } from "./SelectedUser";
+import { useCurrentUserRole } from "./useCurrentUserRole";
 
 export const PeoplePage = () => {
   const apiSettingsModal = useRef();
   const toast = useToast();
   const [selectedUser, setSelectedUser] = useState(null);
   const [invitationOpen, setInvitationOpen] = useState(false);
+  const [roleUpdate, setRoleUpdate] = useState(null);
+  const { canManageRoles } = useCurrentUserRole();
 
   useUpdatePageTitle("People");
 
@@ -30,6 +33,14 @@ export const PeoplePage = () => {
       localStorage.setItem("selectedUser", user?.id);
     },
     [setSelectedUser],
+  );
+
+  const handleRoleChanged = useCallback(
+    (userId, newRole) => {
+      setSelectedUser((prev) => (prev && prev.id === userId ? { ...prev, role: newRole } : prev));
+      setRoleUpdate({ userId, newRole });
+    },
+    [],
   );
 
   const apiTokensSettingsModalProps = useMemo(
@@ -69,13 +80,15 @@ export const PeoplePage = () => {
                 API Tokens Settings
               </Button>
             )}
-            <Button
-              leading={<IconPlus className="!h-4" />}
-              onClick={() => setInvitationOpen(true)}
-              aria-label="Invite new member"
-            >
-              Add Members
-            </Button>
+            {canManageRoles && (
+              <Button
+                leading={<IconPlus className="!h-4" />}
+                onClick={() => setInvitationOpen(true)}
+                aria-label="Invite new member"
+              >
+                Add Members
+              </Button>
+            )}
           </Space>
         </Space>
       </div>
@@ -84,10 +97,15 @@ export const PeoplePage = () => {
           selectedUser={selectedUser}
           defaultSelected={defaultSelected}
           onSelect={(user) => selectUser(user)}
+          roleUpdate={roleUpdate}
         />
 
         {selectedUser ? (
-          <SelectedUser user={selectedUser} onClose={() => selectUser(null)} />
+          <SelectedUser
+            user={selectedUser}
+            onClose={() => selectUser(null)}
+            onRoleChanged={handleRoleChanged}
+          />
         ) : (
           isFF(FF_LSDV_E_297) && <HeidiTips collection="organizationPage" />
         )}

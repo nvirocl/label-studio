@@ -170,7 +170,7 @@ _user_schema = {
 class UserAPI(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_required = ViewClassPermission(
-        GET=all_permissions.organizations_change,
+        GET=all_permissions.projects_view,
         PUT=all_permissions.organizations_change,
         POST=all_permissions.organizations_change,
         PATCH=all_permissions.organizations_view,

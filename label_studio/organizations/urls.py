@@ -25,6 +25,8 @@ _api_urlpattens = [
         api.OrganizationMemberDetailAPI.as_view(),
         name='organization-membership-detail',
     ),
+    # available roles
+    path('roles', api.OrganizationRolesAPI.as_view(), name='organization-roles-list'),
 ]
 # TODO: these urlpatterns should be moved in core/urls with include('organizations.urls')
 urlpatterns = [

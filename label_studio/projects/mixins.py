@@ -72,10 +72,18 @@ class ProjectMixin:
         )
 
     def has_permission(self, user):
+        """Check if user has permission to access this project.
+
+        Managers, Admins, and Owners can access all projects in their org.
+        Annotators and Reviewers can only access projects they are assigned to.
         """
-        Dummy stub for has_permission
-        """
+        from organizations.models import OrganizationMemberRole
+
         user.project = self  # link for activity log
+
+        org = getattr(self, 'organization', None)
+        if org is not None and not org.user_has_role_at_least(user, OrganizationMemberRole.MANAGER):
+            return self.has_collaborator(user)
         return True
 
     def _can_use_overlap(self):
